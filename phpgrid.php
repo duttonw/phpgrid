@@ -3,8 +3,8 @@
 Plugin Name: PHP Grid Control
 Plugin URI: http://www.phpgrid.org/
 Description: PHP Grid Control modified plugin from Abu Ghufran.
-Author: EkAndreas
-Version: 0.5.4
+Author: EkAndreas, Abu Ghufran
+Version: 0.5.5
 Author URI: http://www.flowcom.se/
 */
 
@@ -22,14 +22,12 @@ class PHPGrid_Plugin{
     private $phpgrid_output;
 
     private $add = false;
+    private $inlineadd = false;
     private $delete = false;
     private $edit = false;
     private $export = false;
-
     private $hidden = array();
-
     private $caption = '';
-
     private $lang = '';
 
     /**
@@ -63,7 +61,7 @@ class PHPGrid_Plugin{
         global $post;
 
         $ajax = false;
-				$external_connection = false;
+		$external_connection = false;
 
         if (isset($_REQUEST['action']) && esc_attr( $_REQUEST['action'] ) == 'phpgrid_data' ){
             $ajax = true;
@@ -72,116 +70,125 @@ class PHPGrid_Plugin{
         $grid_columns = array();
         $grid = array();
 
-        // set database table for CRUD operations, override with filter 'phpgrid_table'.
-        $table = '';
+        $regex_pattern = get_shortcode_regex();
+        preg_match_all ('/'.$regex_pattern.'/s', $post->post_content, $regex_matches);
+		foreach($regex_matches[2] as $k=>$code)
+		{
+			if ($code == 'phpgrid') 
+			{
+
+		        // set database table for CRUD operations, override with filter 'phpgrid_table'.
+		        $table = '';
 				$select_command = '';
 
-        $g = new jqgrid();
+		        $g = new jqgrid();
 
-        $db_conf = apply_filters( 'phpgrid_connection', '' );
+		        $db_conf = apply_filters( 'phpgrid_connection', '' );
+				
+				$external_connection = true;
 
-        if ( is_array( $db_conf ) ){
-            $g = new jqgrid( $db_conf );
-						$external_connection = true;
-        }
+		        if ( is_array( $db_conf ) )
+				{
+		            $g = new jqgrid( $db_conf );
+					$external_connection = true;
+		        }
 
-        $regex_pattern = get_shortcode_regex();
-        preg_match ('/'.$regex_pattern.'/s', $post->post_content, $regex_matches);
-        if ($regex_matches[2] == 'phpgrid') {
+	            $attribureStr = str_replace (" ", "&", trim ($regex_matches[3][$k]));
+	            $attribureStr = str_replace ('"', '', $attribureStr);
 
-            $attribureStr = str_replace (" ", "&", trim ($regex_matches[3]));
-            $attribureStr = str_replace ('"', '', $attribureStr);
+	            $defaults = array ();
+	            $attributes = wp_parse_args($attribureStr, $defaults);
 
-            $defaults = array (
-            );
-            $attributes = wp_parse_args($attribureStr, $defaults);
+	            $column_names = array();
+	            $column_titles = array();
 
-            $column_names = array();
-            $column_titles = array();
+	            if (isset($attributes['table'])){
+	                $table = $attributes['table'];
+	            }
 
-            if (isset($attributes['table'])){
-                $table = $attributes['table'];
-            }
+	            if (isset($attributes['columns'])){
+	                $column_names = $attributes['columns'];
+	            }
 
-            if (isset($attributes['columns'])){
-                $column_names = $attributes['columns'];
-            }
+	            if (isset($attributes['titles'])){
+	                $column_titles = $attributes['titles'];
+	            }
 
-            if (isset($attributes['titles'])){
-                $column_titles = $attributes['titles'];
-            }
+	            if (isset($attributes['hidden'])){
+	                $this->hidden = $attributes['hidden'];
+	            }
 
-            if (isset($attributes['hidden'])){
-                $this->hidden = $attributes['hidden'];
-            }
+	            if (isset($attributes['add'])){
+	                $this->add = $attributes['add'];
+	            }
 
-            if (isset($attributes['add'])){
-                $this->add = $attributes['add'];
-            }
+				if (isset($attributes['inlineadd'])){
+					$this->inlineadd = $attributes['inlineadd'];
+				}
 
-            if (isset($attributes['delete'])){
-                $this->delete = $attributes['delete'];
-            }
+	            if (isset($attributes['delete'])){
+	                $this->delete = $attributes['delete'];
+	            }
 
-            if (isset($attributes['edit'])){
-                $this->edit = $attributes['edit'];
-            }
+	            if (isset($attributes['edit'])){
+	                $this->edit = $attributes['edit'];
+	            }
 
-            if (isset($attributes['caption'])){
-                $this->caption = $attributes['caption'];
-            }
+	            if (isset($attributes['caption'])){
+	                $this->caption = $attributes['caption'];
+	            }
 
-            if (isset($attributes['export'])){
-                $this->export = $attributes['export'];
-            }
+	            if (isset($attributes['export'])){
+	                $this->export = $attributes['export'];
+	            }
 
-            if (isset($attributes['language'])){
-                $this->lang = $attributes['language'];
-            }
+	            if (isset($attributes['language'])){
+	                $this->lang = $attributes['language'];
+	            }
 
-            if ( !is_array( $column_names ) ) {
+	            if (isset($attributes['id'])){
+	                $list_id = $attributes['id'];
+	            }
 
-                $cols = array();
+	            if ( !empty($column_names) && !is_array( $column_names ) ) {
 
-                $colnames_arr = explode( ",", $column_names );
-                $coltitles = explode( ",", $column_titles );
-                $this->hidden = explode( ",", $this->hidden );
+	                $cols = array();
+	                $colnames_arr = explode( ",", $column_names );
+	                $coltitles = explode( ",", $column_titles );
+	                $this->hidden = explode( ",", $this->hidden );
 
-                foreach( $colnames_arr as $key => $column ){
+	                foreach( $colnames_arr as $key => $column ){
 
-                    $col = array();
-                    $col['name'] = $column;
+	                    $col = array();
+	                    $col['name'] = $column;
 
-                    if ( $coltitles[$key] ) $col['title'] = $coltitles[$key]; // caption of column
+	                    if ( $coltitles[$key] ) $col['title'] = $coltitles[$key]; // caption of column
 
-                    //if ( in_array( $column, $this->hidden ) ) $col['hidden'] = true;
+	                    //if ( in_array( $column, $this->hidden ) ) $col['hidden'] = true;
 
-                    $cols[] = $col;
+	                    $cols[] = $col;
 
-                }
+	                }
 
-                $grid_columns = $cols;
+	                $grid_columns = $cols;
+	            }
 
-            }
+		        // set actions to the grid
+		        $actions = array(
+					"add"               => ($this->add === 'add'),
+					"edit"              => ($this->edit === 'edit'),
+					"delete"            => ($this->delete === 'delete'),
+		            "rowactions"        => false,
+					"export"            => ($this->export === 'true'),
+		            "autofilter"        => true,
+		            "search"            => "simple",
+					"inlineadd"         => ($this->inlineadd === 'inlineadd'),
+		            "showhidecolumns"   => false
+		        );
 
-        }
-
-        // set actions to the grid
-        $actions = array(
-            "add"               => $this->add,
-            "edit"              => $this->edit,
-            "delete"            => $this->delete,
-            "rowactions"        => false,
-            "export"            => $this->export,
-            "autofilter"        => true,
-            "search"            => "simple",
-            "inlineadd"         => $this->edit,
-            "showhidecolumns"   => false
-        );
-
-        // open actions for filters
-        $actions = apply_filters( 'phpgrid_actions', $actions );
-        $g->set_actions( $actions );
+		        // open actions for filters
+		        $actions = apply_filters( 'phpgrid_actions', $actions );
+		        $g->set_actions( $actions );
 
 				if ( $ajax && isset( $_REQUEST['phpgrid_select_command'] ) ) $select_command = esc_attr( $_REQUEST['phpgrid_select_command'] );
 
@@ -189,57 +196,55 @@ class PHPGrid_Plugin{
 
 				if ( $ajax && isset( $_REQUEST['phpgrid_table'] ) ) $table = esc_attr( $_REQUEST['phpgrid_table'] );
 
-        $table = apply_filters( 'phpgrid_table', $table );
+		        $table = apply_filters( 'phpgrid_table', $table );
 
-        if ( !empty( $table ) ) {
-
+		        if ( !empty( $table ) ) 
+		        {
 					$g->table = $table;
-
 				}
-				else if ( !empty( $select_command ) ) {
-
+				else if ( !empty( $select_command ) ) 
+				{
 					$g->select_command = $select_command;
-
 				}
-				else {
-
+				else 
+				{
 					return;
-
 				}
 
-        $g->set_columns( apply_filters( 'phpgrid_columns', $grid_columns ) );
+				if (!empty($grid_columns))
+		        	$g->set_columns( apply_filters( 'phpgrid_columns', $grid_columns ) );
 
-        if ( empty($this->caption) ) $this->caption = $table;
+				if ( empty($this->caption) ) $this->caption = $table;
 
-        // set some standard options to grid. Override this with filter 'phpgrid_options'.
-        $grid["caption"] = $this->caption;
-        $grid["multiselect"] = false;
-        $grid["autowidth"] = true;
+		        // set some standard options to grid. Override this with filter 'phpgrid_options'.
+				$grid["caption"] = $this->caption;
+		        $grid["multiselect"] = false;
+		        $grid["autowidth"] = true;
 
-        // fetch if filter is used otherwise use standard options
-        $grid = apply_filters( 'phpgrid_options', $grid );
+		        // fetch if filter is used otherwise use standard options
+		        $grid = apply_filters( 'phpgrid_options', $grid );
 
-        // now use ajax! this is a wp override!
-        //$grid["url"] = admin_url( 'admin-ajax.php' ) . '?action=phpgrid_data&phpgrid_table=' . $table;
+		        // now use ajax! this is a wp override!
+		        //$grid["url"] = admin_url( 'admin-ajax.php' ) . '?action=phpgrid_data&phpgrid_table=' . $table;
 
-        // set the options
-        $g->set_options( $grid );
+		        // set the options
+		        $g->set_options( $grid );
 
-        if ( !empty( $this->lang ) ){
-            add_filter( 'phpgrid_lang', array($this, 'lang') );
-        }
+		        if ( !empty( $this->lang ) ){
+		            add_filter( 'phpgrid_lang', array($this, 'lang') );
+		        }
 
-        // subqueries are also supported now (v1.2)
-        // $g->select_command = "select * from (select * from invheader) as o";
+		        // render grid, possible to override the name with filter 'phpgrid_name'.
+		        $this->phpgrid_output["$list_id"] = $g->render( apply_filters( 'phpgrid_name', $list_id ) );
 
-        // render grid, possible to override the name with filter 'phpgrid_name'.
-        $this->phpgrid_output = $g->render( apply_filters( 'phpgrid_name', 'phpgrid1' ) );
-
-				//swiching back to WP
-				if ( $external_connection ){
-					mysql_connect( DB_HOST, DB_USER, DB_PASSWORD );
-					mysql_select_db( DB_NAME );
-				}
+	        }
+		}
+		
+		//swiching back to WP
+		if ( $external_connection ){
+			mysql_connect( DB_HOST, DB_USER, DB_PASSWORD );
+			mysql_select_db( DB_NAME );
+		}
 
         if ( $ajax ){
             die(0);
@@ -283,9 +288,9 @@ class PHPGrid_Plugin{
     /*
      * Output the shortcode
      */
-    function shortcode_phpgrid( $content )
+    function shortcode_phpgrid( $attr )
     {
-        return $this->phpgrid_output;
+        return $this->phpgrid_output[$attr["id"]];
     }
 
     /*
@@ -295,5 +300,4 @@ class PHPGrid_Plugin{
     {
         echo $this->phpgrid_output;
     }
-
 }
