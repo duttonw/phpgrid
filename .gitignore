@@ -1,1 +1,6 @@
 lib
+.idea
+workspace.xml
+modules.xml
+misc.xml
+*.iml
